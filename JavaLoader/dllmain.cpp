@@ -21,11 +21,25 @@ const std::string MainMethodSignature = "MainMethodSignature";
 
 
 void DebugLog(std::string datas) {
-    
-        printf("[Javaloader]: ");
-        printf(datas.c_str());
-        printf("\n");
-   
+     printf("[Javaloader]: ");
+     printf(datas.c_str());
+     printf("\n");
+}
+
+//thanks to laht from stackoverflow
+void add_path(JNIEnv* env, const std::string& path)
+{
+    const std::string urlPath = "file:/" + path;
+    jclass classLoaderCls = env->FindClass("java/lang/ClassLoader");
+    jmethodID getSystemClassLoaderMethod = env->GetStaticMethodID(classLoaderCls, "getSystemClassLoader", "()Ljava/lang/ClassLoader;");
+    jobject classLoaderInstance = env->CallStaticObjectMethod(classLoaderCls, getSystemClassLoaderMethod);
+    jclass urlClassLoaderCls = env->FindClass("java/net/URLClassLoader");
+    jmethodID addUrlMethod = env->GetMethodID(urlClassLoaderCls, "addURL", "(Ljava/net/URL;)V");
+    jclass urlCls = env->FindClass("java/net/URL");
+    jmethodID urlConstructor = env->GetMethodID(urlCls, "<init>", "(Ljava/lang/String;)V");
+    jobject urlInstance = env->NewObject(urlCls, urlConstructor, env->NewStringUTF(urlPath.c_str()));
+    env->CallVoidMethod(classLoaderInstance, addUrlMethod, urlInstance);
+    DebugLog("Added " + urlPath + " to the classpath");
 }
 
 BOOL GetJVM(JavaVM* &vm, JNIEnv* &jniEnvironment)
@@ -74,17 +88,21 @@ BOOL APIENTRY DllMain( HMODULE hModule,
         DebugLog("Could not find a JVM so created one");
     }
     else
+    {
         DebugLog("Found a JVM");
+    }
+
+
+    add_path(environment, LibraryAddress);
 	
     DebugLog("Finding class....");
     auto* const mainClass = environment->FindClass(MainClass.c_str());
     DebugLog("Finding method.......");
     auto* const main_method = environment->GetStaticMethodID(mainClass, MainMethod.c_str(), MainMethodSignature.c_str());
     DebugLog("Attaching to thread...");
-    vm->AttachCurrentThread(reinterpret_cast<void**>(&environment), NULL);
+    vm->AttachCurrentThread(reinterpret_cast<void**>(&environment), nullptr);
     DebugLog("Invoking method...");
     environment->CallStaticVoidMethod(mainClass, main_method);
     vm->DetachCurrentThread();
 
 }
-
